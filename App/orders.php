@@ -2,6 +2,12 @@
 require 'config/database.php';
 require 'includes/functions.php';
 
+// Proteksi: Jika pengguna belum login atau sesi habis, arahkan ke halaman login
+if (!isset($_SESSION['user_id'])) {
+    flash('Sesi Anda telah kedaluwarsa. Silakan login kembali.', 'warning');
+    redirect('login.php');
+}
+
 // Fitur Otomatis: Pesanan yang sudah >= 7 hari otomatis Lunas & Selesai
 $pdo->exec("UPDATE orders SET payment_status = 'Lunas', partial_amount = total_amount, status = 'Selesai' WHERE created_at <= NOW() - INTERVAL 7 DAY AND (payment_status != 'Lunas' OR status != 'Selesai')");
 

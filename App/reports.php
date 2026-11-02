@@ -2,6 +2,12 @@
 require 'config/database.php';
 require 'includes/functions.php';
 
+// Proteksi: Jika pengguna belum login atau sesi habis, arahkan ke halaman login
+if (!isset($_SESSION['user_id'])) {
+    flash('Sesi Anda telah kedaluwarsa. Silakan login kembali.', 'warning');
+    redirect('login.php');
+}
+
 $startDate = $_GET['start_date'] ?? '';
 $endDate = $_GET['end_date'] ?? '';
 $paymentStatusFilter = $_GET['payment_status'] ?? '';
