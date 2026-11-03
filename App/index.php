@@ -2,8 +2,8 @@
 require 'config/database.php';
 require 'includes/functions.php';
 
-// Proteksi: Jika pengguna belum login atau sesi habis, arahkan ke halaman login
-if (!isset($_SESSION['user_id'])) {
+// Proteksi Sesi: Jika belum login atau sesi habis, arahkan ke login.php
+if (!isset($_SESSION['id'])) {
     flash('Sesi Anda telah kedaluwarsa. Silakan login kembali.', 'warning');
     redirect('login.php');
 }
@@ -116,10 +116,10 @@ $recentOrders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC LIMIT
                 <tr>
                     <td class="fw-semibold"><?= e($o['order_code']) ?></td>
                     <td class="d-none d-md-table-cell"><?= e($o['customer_name']) ?></td>
+                    <!-- Format tanggal diubah ke dd/mm/yy -->
                     <td><?= e(date('d/m/y', strtotime($o['created_at']))) ?></td>
                     <td><?= rupiah($o['total_amount']) ?></td>
                     <td>
-                        <?>
                         <?php 
                             $rowStatus = trim($o['payment_status'] ?? '');
                             $rLunas = (strcasecmp($rowStatus, 'Lunas') === 0);

@@ -2,8 +2,8 @@
 require 'config/database.php';
 require 'includes/functions.php';
 
-// Proteksi: Jika pengguna belum login atau sesi habis, arahkan ke halaman login
-if (!isset($_SESSION['user_id'])) {
+// Proteksi Sesi: Jika belum login atau sesi habis, arahkan ke login.php
+if (!isset($_SESSION['id'])) {
     flash('Sesi Anda telah kedaluwarsa. Silakan login kembali.', 'warning');
     redirect('login.php');
 }

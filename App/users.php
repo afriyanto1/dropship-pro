@@ -2,6 +2,12 @@
 require 'config/database.php';
 require 'includes/functions.php';
 
+// Proteksi Sesi: Jika belum login atau sesi habis, arahkan ke login.php
+if (!isset($_SESSION['id'])) {
+    flash('Sesi Anda telah kedaluwarsa. Silakan login kembali.', 'warning');
+    redirect('login.php');
+}
+
 // Proteksi: Hanya admin yang dapat mengakses manajemen pengguna
 if (($_SESSION['role'] ?? '') !== 'admin') {
     flash('Akses ditolak. Halaman Manajemen Pengguna hanya untuk Admin.', 'danger');

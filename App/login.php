@@ -2,6 +2,12 @@
 session_start();
 require_once 'config/database.php';
 
+// Jika sudah login, langsung arahkan ke index.php
+if (isset($_SESSION['id']) || isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
+}
+
 $error = '';
 if (isset($_POST['login'])) {
     $username = trim($_POST['username'] ?? '');
@@ -13,8 +19,12 @@ if (isset($_POST['login'])) {
         $user = $stmt->fetch();
 
         if ($user) {
+            // Set session variables lengkap (id, user_id, username, role) agar sinkron dengan proteksi halaman
+            $_SESSION['id'] = $user['id'];
+            $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
+            
             header("Location: index.php");
             exit;
         } else {
@@ -91,18 +101,39 @@ if (isset($_POST['login'])) {
                 <label class="form-label text-secondary fw-semibold" style="font-size: 0.9rem;">Username</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
-                    <input type="text" class="form-control border-start-0" name="username" placeholder="Masukkan username" required>
+                    <input type="text" class="form-control border-start-0" name="username" placeholder="Masukkan username" required autocomplete="username">
                 </div>
             </div>
             <div class="mb-4">
                 <label class="form-label text-secondary fw-semibold" style="font-size: 0.9rem;">Password</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
-                    <input type="password" class="form-control border-start-0" name="password" placeholder="Masukkan password" required>
+                    <input type="password" class="form-control border-start-0 border-end-0" name="password" id="passwordInput" placeholder="Masukkan password" required autocomplete="current-password">
+                    <button class="btn btn-outline-secondary bg-light border-start-0" type="button" id="togglePassword" style="border-top-right-radius: 8px; border-bottom-right-radius: 8px;">
+                        <i class="bi bi-eye" id="toggleIcon"></i>
+                    </button>
                 </div>
             </div>
             <button type="submit" name="login" class="btn btn-primary btn-login w-100 text-white shadow-sm">Masuk ke Sistem</button>
         </form>
     </div>
+
+    <!-- Skrip interaktif tombol lihat/sembunyikan password -->
+    <script>
+    document.getElementById('togglePassword').addEventListener('click', function () {
+        const passwordInput = document.getElementById('passwordInput');
+        const toggleIcon = document.getElementById('toggleIcon');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.classList.remove('bi-eye');
+            toggleIcon.classList.add('bi-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.classList.remove('bi-eye-slash');
+            toggleIcon.classList.add('bi-eye');
+        }
+    });
+    </script>
 </body>
 </html>
