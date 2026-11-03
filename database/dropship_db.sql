@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS dropship-db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE dropship-db;
+CREATE DATABASE IF NOT EXISTS dropshipdb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE dropshipdb;
 
 CREATE TABLE IF NOT EXISTS suppliers (
  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -89,6 +89,11 @@ INSERT INTO products (name,sku,supplier_id,cost_price,selling_price,stock,catego
 SELECT 'Botol Minum 600ml','BOTOL-600',s.id,25000,35000,20,'Peralatan','Produk contoh untuk uji coba.'
 FROM suppliers s WHERE s.name='Supplier Contoh'
 AND NOT EXISTS (SELECT 1 FROM products WHERE sku='BOTOL-600');
+
+ALTER TABLE orders ADD COLUMN subtotal DECIMAL(15,2) DEFAULT 0.00;
+ALTER TABLE orders ADD COLUMN fulfillment_cost DECIMAL(15,2) DEFAULT 0.00;
+ALTER TABLE orders ADD COLUMN ad_cost DECIMAL(15,2) DEFAULT 0.00;
+ALTER TABLE orders ADD COLUMN partial_amount DECIMAL(15,2) DEFAULT 0.00;
 
 -- Hapus Kolom Stock dari Tabel Products
 ALTER TABLE `products` DROP COLUMN IF EXISTS `stock`;
