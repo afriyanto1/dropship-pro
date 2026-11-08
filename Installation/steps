@@ -1,17 +1,17 @@
-1. apt update -y
-2. apt upgrade -y
-3. apt install nginx
-4. systemctl status nginx
-5. apt install git -y
-6. apt install php php-cli php-common php-mysql php-curl php-gd php-mbstring php-xml php-zip -y
-7. git clone https://github.com/afriyanto1/dropship-pro.git
+1. sudo apt update -y
+2. sudo apt upgrade -y
+3. sudo apt install nginx -y
+4. sudo systemctl status nginx
+5. sudo apt install git -y
+6. sudo apt install php php-cli php-common php-mysql php-curl php-gd php-mbstring php-xml php-zip -y
+7. sudo git clone https://github.com/afriyanto1/dropship-pro.git
 8. sudo apt install php8.5-fpm -y
 9. curl -o global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 10. mysql -h dropship-db.ctq2e6428ybb.ap-southeast-2.rds.amazonaws.com -P 3306 -u admin -p --ssl-mode=VERIFY_IDENTITY --ssl-ca=./global-bundle.pem dropshipdb < dropship_db.sql
 11. sudo apt install php8.5-mysql -y
 12. sudo systemctl restart php8.5-fpm
-13. systemctl restart nginx
-14. apt install certbot python3-certbot-nginx -y
+13. sudo systemctl restart nginx
+14. sudo apt install certbot python3-certbot-nginx -y
 15. sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 16. sudo certbot --nginx -d dropship-pro.duckdns.org
-17. systemctl reload nginx
+17. sudo systemctl reload nginx
