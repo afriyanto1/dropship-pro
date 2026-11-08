@@ -1,0 +1,80 @@
+
+# ==========================================
+# HTTPS - DROPSHIP APPLICATION
+# ==========================================
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl ipv6only=on;
+
+    server_name dropship-pro.duckdns.org;
+
+    root /var/www/html;
+    index login.php;
+
+    # ======================================
+    # SSL CERTIFICATE - LET'S ENCRYPT
+    # ======================================
+    ssl_certificate /etc/letsencrypt/live/dropship-pro.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/dropship-pro.duckdns.org/privkey.pem;
+
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # ======================================
+    # LOGGING
+    # ======================================
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    # ======================================
+    # MAIN APPLICATION
+    # ======================================
+    location / {
+        try_files $uri $uri/ /login.php?$query_string;
+    }
+
+    # ======================================
+    # PHP-FPM 8.5
+    # ======================================
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+
+        fastcgi_pass unix:/run/php/php8.5-fpm.sock;
+        fastcgi_read_timeout 300;
+    }
+
+    # ======================================
+    # SECURITY
+    # ======================================
+
+    # Deny hidden files and directories
+    location ~ /\. {
+        deny all;
+    }
+
+    # Deny sensitive files
+    location ~* \.(env|log|ini|conf|sql|bak)$ {
+        deny all;
+    }
+
+    # ======================================
+    # STATIC FILE CACHING
+    # ======================================
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2)$ {
+        expires 30d;
+        access_log off;
+    }
+}
+
+
+# ==========================================
+# HTTP - REDIRECT TO HTTPS
+# ==========================================
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    server_name dropship-pro.duckdns.org;
+
+    return 301 https://$host$request_uri;
+}
