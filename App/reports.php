@@ -67,7 +67,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
             <th>No. Pesanan</th>
             <th>Tanggal</th>
             <th>Barang yang Dipesan</th>
-            <th>Quantity (Efektif)</th>
+            <th>Quantity</th>
             <th>Ongkir</th>
             <th>Biaya FO</th>
             <th>Biaya Iklan</th>
@@ -94,9 +94,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
         $revenue = (float)($o['total_amount'] ?? 0);
         $totalQty = (int)($o['total_quantity'] ?? 0);
 
-        // Pendapatan Bersih = Total Pendapatan - (Ongkir + Biaya FO + Biaya Iklan)
         $pendapatanBersihRow = $revenue - ($ongkir + $fo + $ad);
-        // Laba Bersih = Total Margin - (Ongkir + Biaya FO + Biaya Iklan)
         $labaBersihRow = $margin - ($ongkir + $fo + $ad);
 
         if (in_array($o['payment_status'], ['Lunas', 'Pembayaran Partial'])) {
@@ -162,7 +160,7 @@ $totalFo = $stats['total_fo'] ?? 0;
 $totalAd = $stats['total_ad'] ?? 0;
 
 if ($isAdmin) {
-    // Hitung Total Margin dengan mengurangi returned_qty
+    // Perhitungan Margin memperhitungkan barang yang diretur (quantity - returned_qty)
     $sqlMargin = "SELECT SUM((oi.selling_price - oi.cost_price) * (oi.quantity - oi.returned_qty)) as total_margin 
         FROM order_items oi JOIN orders o ON oi.order_id = o.id 
         WHERE o.payment_status IN ('Lunas', 'Pembayaran Partial') AND " . str_replace("created_at", "o.created_at", $dateCondition);
@@ -181,14 +179,13 @@ $limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 
-$qCount = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE $whereSql"); // Wait, use $dateCondition
 $qCount = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE $dateCondition");
 $qCount->execute($params);
 $totalData = $qCount->fetchColumn();
 $totalPages = ceil($totalData / $limit);
 
 $sqlOrders = "SELECT o.*, 
-    (SELECT GROUP_CONCAT(CONCAT(p.name, ' (', (oi.quantity - oi.returned_qty), 'x)') SEPARATOR ', ') FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = o.id) as ordered_items_list 
+    (SELECT GROUP_CONCAT(CONCAT(p.name, ' (', oi.quantity, 'x)') SEPARATOR ', ') FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = o.id) as ordered_items_list 
     FROM orders o WHERE $dateCondition ORDER BY o.created_at DESC LIMIT $limit OFFSET $offset";
 $stmtOrders = $pdo->prepare($sqlOrders);
 $stmtOrders->execute($params);
@@ -281,7 +278,7 @@ $orders = $stmtOrders->fetchAll();
                 <tr>
                     <th>No. Pesanan</th>
                     <th class="d-none d-md-table-cell">Tanggal</th>
-                    <th>Barang Dipesan (Qty Efektif)</th>
+                    <th>Barang Dipesan (Qty)</th>
                     <th>Total Pendapatan</th>
                     <?php if ($isAdmin): ?><th class="d-none d-md-table-cell">Biaya Operasional (Ongkir/FO/Iklan)</th><?php endif; ?>
                     <th>Status Pembayaran</th>
