@@ -56,8 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         while (($row = fgetcsv($handle)) !== false) {
-            // Urutan kolom baru (tanpa status_pembayaran):
-            // [0] tanggal, [1] nama_produk, [2] jumlah_barang, [3] jumlah_pembayaran, [4] biaya_fo, [5] biaya_iklan, [6] status_pesanan
             if (count($row) < 3) continue;
 
             $rawDate = trim($row[0]);
@@ -71,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Parse format tanggal dd/mm/yy ke Y-m-d
             $createdAt = date('Y-m-d H:i:s');
             if ($rawDate !== '') {
-                // Mendukung pemisah / atau - (misal 17/10/26 atau 17-10-26)
                 $dateParts = preg_split('/[\/\-]/', $rawDate);
                 if (count($dateParts) === 3) {
                     $d = $dateParts[0];
@@ -101,10 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $subtotal = $sellingPrice * $qty;
             $shippingCost = 0; // Ongkir terpisah
 
-            // Aturan Total Tagihan murni dari subtotal produk (tanpa ongkir)
             $totalAmount = $subtotal;
 
-            // Penentuan Status Pembayaran otomatis oleh aplikasi berdasarkan jumlah_pembayaran
             if ($partialAmount <= 0) {
                 $paymentStatus = 'Belum dibayar';
                 $partialAmount = 0;
@@ -171,30 +166,46 @@ require 'includes/header.php';
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h1 class="page-heading h3 mb-1">Impor Pesanan dari Excel / CSV</h1>
-        <div class="text-muted">Unggah file CSV dengan format tanggal <code>dd/mm/yy</code> (harga & status pembayaran dihitung otomatis oleh aplikasi).</div>
+        <div class="text-muted">Unggah file CSV dengan format tanggal <code>dd/mm/yy</code> (harga & status pembayaran dihitung otomatis).</div>
     </div>
     <div>
-        <a href="import_po.php?template=csv" class="btn btn-outline-success">
+        <a href="import_po.php?template=csv" class="btn btn-success shadow-sm">
             <i class="bi bi-file-earmark-arrow-down me-1"></i> Unduh Template CSV
         </a>
     </div>
 </div>
 
-<div class="card p-4 shadow-sm border-0" style="max-width: 600px;">
-    <form method="post" enctype="multipart/form-data" class="vstack gap-3">
-        <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-        <div>
-            <label class="form-label fw-semibold">Pilih File CSV (.csv)</label>
-            <input type="file" name="import_file" accept=".csv" required class="form-control">
-            <div class="form-text mt-2">
-                Pastikan kolom Excel/CSV sesuai template: <code>tanggal</code> (dd/mm/yy), <code>nama_produk</code>, <code>jumlah_barang</code>, <code>jumlah_pembayaran</code>, <code>biaya_fo</code>, <code>biaya_iklan</code>, <code>status_pesanan</code>.
-            </div>
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 p-4 p-md-5 rounded-4">
+            <form method="post" enctype="multipart/form-data" class="vstack gap-4">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                
+                <div>
+                    <label class="form-label fw-semibold text-dark mb-2">Pilih File CSV (.csv)</label>
+                    <input type="file" name="import_file" accept=".csv" required class="form-control form-control-lg py-2">
+                </div>
+
+                <div class="alert alert-info bg-info bg-opacity-10 border-0 text-dark p-3 rounded-3 mb-0">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle-fill text-info fs-5 mt-1"></i>
+                        <div>
+                            <span class="fw-semibold d-block mb-1">Ketentuan Format Kolom CSV:</span>
+                            <span class="small text-muted">Pastikan urutan kolom Excel/CSV sesuai dengan template berikut:</span>
+                            <div class="mt-2 font-monospace small bg-white p-2 rounded border text-secondary">
+                                tanggal (dd/mm/yy), nama_produk, jumlah_barang, jumlah_pembayaran, biaya_fo, biaya_iklan, status_pesanan
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 pt-2">
+                    <button class="btn btn-primary px-4 py-2"><i class="bi bi-upload me-1"></i> Unggah & Proses Impor</button>
+                    <a href="orders.php" class="btn btn-light px-4 py-2 border">Kembali</a>
+                </div>
+            </form>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-primary"><i class="bi bi-upload me-1"></i> Unggah & Proses Impor</button>
-            <a href="orders.php" class="btn btn-light">Kembali</a>
-        </div>
-    </form>
+    </div>
 </div>
 
 <?php require 'includes/footer.php'; ?>
