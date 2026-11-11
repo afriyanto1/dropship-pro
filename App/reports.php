@@ -50,9 +50,9 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
     header('Content-Disposition: attachment; filename=laporan_keuangan_' . ($startDate ?: 'semua') . '_to_' . ($endDate ?: 'semua') . '.xls');
     
     $sqlExport = "SELECT o.*, 
-        (SELECT SUM((oi.selling_price - oi.cost_price) * oi.quantity) FROM order_items oi WHERE oi.order_id = o.id) as product_margin,
+        (SELECT SUM((oi.selling_price - oi.cost_price) * (oi.quantity - oi.returned_qty)) FROM order_items oi WHERE oi.order_id = o.id) as product_margin,
         (SELECT GROUP_CONCAT(p.name SEPARATOR ', ') FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = o.id) as ordered_items_list,
-        (SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = o.id) as total_quantity
+        (SELECT SUM(oi.quantity - oi.returned_qty) FROM order_items oi WHERE oi.order_id = o.id) as total_quantity
         FROM orders o WHERE $dateCondition ORDER BY o.created_at DESC";
     $stmtExp = $pdo->prepare($sqlExport);
     $stmtExp->execute($params);
@@ -67,7 +67,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
             <th>No. Pesanan</th>
             <th>Tanggal</th>
             <th>Barang yang Dipesan</th>
-            <th>Quantity</th>
+            <th>Quantity (Efektif)</th>
             <th>Ongkir</th>
             <th>Biaya FO</th>
             <th>Biaya Iklan</th>
@@ -109,7 +109,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
             $grandAd += $ad;
         }
 
-        // Format tanggal ekspor excel ke dd/mm/yy
         $excelDateFormatted = date('d/m/y', strtotime($o['created_at']));
 
         echo "<tr>
@@ -163,7 +162,8 @@ $totalFo = $stats['total_fo'] ?? 0;
 $totalAd = $stats['total_ad'] ?? 0;
 
 if ($isAdmin) {
-    $sqlMargin = "SELECT SUM((oi.selling_price - oi.cost_price) * oi.quantity) as total_margin 
+    // Hitung Total Margin dengan mengurangi returned_qty
+    $sqlMargin = "SELECT SUM((oi.selling_price - oi.cost_price) * (oi.quantity - oi.returned_qty)) as total_margin 
         FROM order_items oi JOIN orders o ON oi.order_id = o.id 
         WHERE o.payment_status IN ('Lunas', 'Pembayaran Partial') AND " . str_replace("created_at", "o.created_at", $dateCondition);
     $stmtMargin = $pdo->prepare($sqlMargin);
@@ -181,13 +181,14 @@ $limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 
+$qCount = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE $whereSql"); // Wait, use $dateCondition
 $qCount = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE $dateCondition");
 $qCount->execute($params);
 $totalData = $qCount->fetchColumn();
 $totalPages = ceil($totalData / $limit);
 
 $sqlOrders = "SELECT o.*, 
-    (SELECT GROUP_CONCAT(CONCAT(p.name, ' (', oi.quantity, 'x)') SEPARATOR ', ') FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = o.id) as ordered_items_list 
+    (SELECT GROUP_CONCAT(CONCAT(p.name, ' (', (oi.quantity - oi.returned_qty), 'x)') SEPARATOR ', ') FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = o.id) as ordered_items_list 
     FROM orders o WHERE $dateCondition ORDER BY o.created_at DESC LIMIT $limit OFFSET $offset";
 $stmtOrders = $pdo->prepare($sqlOrders);
 $stmtOrders->execute($params);
@@ -244,7 +245,7 @@ $orders = $stmtOrders->fetchAll();
     </form>
 </div>
 
-<!-- Kartu Ringkasan Metrik (Staff hanya melihat Total Pendapatan) -->
+<!-- Kartu Ringkasan Metrik -->
 <div class="row g-3 mb-4">
     <div class="col-md-<?= $isAdmin ? '4' : '12' ?>">
         <div class="card p-3 shadow-sm border-0 bg-primary text-white h-100">
@@ -280,7 +281,7 @@ $orders = $stmtOrders->fetchAll();
                 <tr>
                     <th>No. Pesanan</th>
                     <th class="d-none d-md-table-cell">Tanggal</th>
-                    <th>Barang Dipesan (Qty)</th>
+                    <th>Barang Dipesan (Qty Efektif)</th>
                     <th>Total Pendapatan</th>
                     <?php if ($isAdmin): ?><th class="d-none d-md-table-cell">Biaya Operasional (Ongkir/FO/Iklan)</th><?php endif; ?>
                     <th>Status Pembayaran</th>
@@ -294,7 +295,6 @@ $orders = $stmtOrders->fetchAll();
                 <?php foreach ($orders as $o): ?>
                 <tr>
                     <td class="fw-semibold"><?= e($o['order_code']) ?></td>
-                    <!-- Tanggal disembunyikan di HP menggunakan d-none d-md-table-cell -->
                     <td class="d-none d-md-table-cell"><?= e(date('d/m/y', strtotime($o['created_at']))) ?></td>
                     <td><small><?= e($o['ordered_items_list'] ?? '-') ?></small></td>
                     <td><?= rupiah($o['total_amount']) ?></td>
@@ -310,7 +310,6 @@ $orders = $stmtOrders->fetchAll();
                             <?= e($o['payment_status']) ?>
                         </span>
                     </td>
-                    <!-- Status Pesanan disembunyikan di HP menggunakan d-none d-md-table-cell -->
                     <td class="d-none d-md-table-cell"><span class="badge text-bg-secondary"><?= e($o['status']) ?></span></td>
                 </tr>
                 <?php endforeach; ?>

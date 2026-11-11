@@ -18,8 +18,8 @@ $qPendapatan = $pdo->query("SELECT SUM(total_amount) as total FROM orders WHERE 
 $totalPendapatan = $qPendapatan['total'] ?? 0;
 
 if ($isAdmin) {
-    // 2. Hitung Total Margin Produk dari pesanan yang valid/lunas/partial
-    $qMargin = $pdo->query("SELECT SUM((oi.selling_price - oi.cost_price) * oi.quantity) as total_margin 
+    // 2. Hitung Total Margin Produk dengan memperhitungkan item yang diretur (quantity - returned_qty)
+    $qMargin = $pdo->query("SELECT SUM((oi.selling_price - oi.cost_price) * (oi.quantity - oi.returned_qty)) as total_margin 
         FROM order_items oi JOIN orders o ON oi.order_id = o.id 
         WHERE o.payment_status IN ('Lunas', 'Pembayaran Partial')")->fetch();
     $totalMargin = $qMargin['total_margin'] ?? 0;
@@ -31,15 +31,18 @@ if ($isAdmin) {
     $totalFo = $qBiaya['total_fo'] ?? 0;
     $totalAd = $qBiaya['total_ad'] ?? 0;
 
-    // 4. Hitung Pendapatan Bersih = Total Margin - (Ongkir + Biaya FO + Biaya Iklan)
-    $pendapatanBersih = $totalMargin - ($totalOngkir + $totalFo + $totalAd);
+    // 4. Hitung Pendapatan Bersih = Total Pendapatan - (Ongkir + Biaya FO + Biaya Iklan)
+    $pendapatanBersih = $totalPendapatan - ($totalOngkir + $totalFo + $totalAd);
 
-    // 5. Hitung Jumlah Pesanan Aktif (selain Selesai & Dibatalkan)
+    // 5. Hitung Laba Bersih = Total Margin - (Ongkir + Biaya FO + Biaya Iklan)
+    $labaBersih = $totalMargin - ($totalOngkir + $totalFo + $totalAd);
+
+    // 6. Hitung Jumlah Pesanan Aktif (selain Selesai & Dibatalkan)
     $qActive = $pdo->query("SELECT COUNT(*) as total FROM orders WHERE status NOT IN ('Selesai', 'Dibatalkan')")->fetch();
     $activeOrdersCount = $qActive['total'] ?? 0;
 }
 
-// 6. Ambil 5 Pesanan Terbaru
+// 7. Ambil 5 Pesanan Terbaru
 $recentOrders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC LIMIT 5")->fetchAll();
 ?>
 
@@ -66,7 +69,7 @@ $recentOrders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC LIMIT
     <div class="col-md-6 col-xl-3">
         <div class="card p-3 shadow-sm border-0 bg-success text-white h-100">
             <div class="small text-uppercase fw-semibold opacity-75">Laba Bersih</div>
-            <div class="h4 fw-bold my-2"><?= rupiah($pendapatanBersih) ?></div>
+            <div class="h4 fw-bold my-2"><?= rupiah($labaBersih) ?></div>
             <div class="small opacity-85">Margin - (Ongkir + FO + Iklan)</div>
         </div>
     </div>
@@ -116,7 +119,6 @@ $recentOrders = $pdo->query("SELECT * FROM orders ORDER BY created_at DESC LIMIT
                 <tr>
                     <td class="fw-semibold"><?= e($o['order_code']) ?></td>
                     <td class="d-none d-md-table-cell"><?= e($o['customer_name']) ?></td>
-                    <!-- Format tanggal diubah ke dd/mm/yy -->
                     <td><?= e(date('d/m/y', strtotime($o['created_at']))) ?></td>
                     <td><?= rupiah($o['total_amount']) ?></td>
                     <td>
