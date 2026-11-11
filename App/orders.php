@@ -28,7 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderId = (int)$_POST['id'];
         $status = $_POST['status'];
         $paymentStatus = $_POST['payment_status'];
-        $trackingNumber = trim($_POST['tracking_number'] ?? '') ?: null;
         $partialAmount = (float)($_POST['partial_amount'] ?? 0);
         $fulfillmentCost = (float)($_POST['fulfillment_cost'] ?? 0);
         $adCost = (float)($_POST['ad_cost'] ?? 0);
@@ -46,25 +45,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($currentItems as $it) {
                 $itemId = $it['id'];
                 $maxQty = (int)$it['quantity'];
-                // Ambil input return, pastikan tidak negatif dan tidak melebihi jumlah beli awal
                 $retQty = isset($returnedQtys[$itemId]) ? max(0, min($maxQty, (int)$returnedQtys[$itemId])) : (int)$it['returned_qty'];
                 
-                // Hitung efektif qty yang dibeli setelah dikurangi return
                 $effectiveQty = $maxQty - $retQty;
                 $sellingPrice = (float)$it['selling_price'];
                 $newLineTotal = $effectiveQty * $sellingPrice;
 
-                // Update kembali ke database untuk item tersebut
                 $upItem = $pdo->prepare("UPDATE order_items SET returned_qty = ?, line_total = ? WHERE id = ?");
                 $upItem->execute([$retQty, $newLineTotal, $itemId]);
 
                 $newSubtotal += $newLineTotal;
             }
 
-            // Total tagihan baru murni dari subtotal produk yang tidak diretur
             $totalAmount = $newSubtotal;
 
-            // Atur nominal otomatis berdasarkan status pembayaran
             if ($paymentStatus === 'Lunas') {
                 $partialAmount = $totalAmount;
             } elseif ($paymentStatus === 'Belum dibayar' || $paymentStatus === 'Dikembalikan') {
@@ -79,9 +73,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Update tabel orders
-            $q = $pdo->prepare("UPDATE orders SET subtotal=?, total_amount=?, status=?, payment_status=?, partial_amount=?, fulfillment_cost=?, ad_cost=?, tracking_number=? WHERE id=?");
-            $q->execute([$newSubtotal, $totalAmount, $status, $paymentStatus, $partialAmount, $fulfillmentCost, $adCost, $trackingNumber, $orderId]);
+            // Update tabel orders tanpa nomor resi
+            $q = $pdo->prepare("UPDATE orders SET subtotal=?, total_amount=?, status=?, payment_status=?, partial_amount=?, fulfillment_cost=?, ad_cost=? WHERE id=?");
+            $q->execute([$newSubtotal, $totalAmount, $status, $paymentStatus, $partialAmount, $fulfillmentCost, $adCost, $orderId]);
             
             $pdo->commit();
             flash('Status, rincian pesanan, dan data return berhasil diperbarui.');
@@ -168,7 +162,6 @@ if ($action === 'view' && $id) {
     $items = $q->fetchAll();
 }
 
-// Logika Filter Pesanan & Pencarian dengan Paginasi (10 data per halaman)
 $search = trim($_GET['q'] ?? '');
 $status_filter = $_GET['status'] ?? '';
 $payment_filter = $_GET['payment_status'] ?? '';
@@ -197,18 +190,15 @@ if ($payment_filter !== '') {
     $params[] = $payment_filter;
 }
 
-// Konfigurasi Paginasi
 $limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 
-// Hitung total data sesuai filter
 $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE $whereSql");
 $stmtCount->execute($params);
 $totalData = (int)$stmtCount->fetchColumn();
 $totalPages = ceil($totalData / $limit);
 
-// Ambil data pesanan dengan limit dan offset
 $sql = "SELECT * FROM orders WHERE $whereSql ORDER BY created_at DESC LIMIT $limit OFFSET $offset";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -329,7 +319,7 @@ addItem();
                 </table>
             </div>
             <div class="ms-auto" style="max-width:360px">
-                <div class="d-flex justify-content-between mb-1"><span>Subtotal Produk (Efektif)</span><span><?= rupiah($order['subtotal']) ?></span></div>
+                <div class="d-flex justify-content-between mb-1"><span>Subtotal Produk</span><span><?= rupiah($order['subtotal']) ?></span></div>
                 <div class="d-flex justify-content-between mb-1 text-muted"><span>Ongkir</span><span><?= rupiah($order['shipping_cost']) ?></span></div>
                 <div class="d-flex justify-content-between mb-1 text-muted"><span>Biaya FO</span><span><?= rupiah($order['fulfillment_cost']) ?></span></div>
                 <div class="d-flex justify-content-between mb-1 text-muted"><span>Biaya Iklan</span><span><?= rupiah($order['ad_cost']) ?></span></div>
@@ -401,10 +391,7 @@ addItem();
                         <input type="number" min="0" step="1" class="form-control" name="ad_cost" value="<?= (float)$order['ad_cost'] ?>">
                     </div>
                 </div>
-                <div>
-                    <label class="form-label">Nomor resi</label>
-                    <input class="form-control" name="tracking_number" value="<?= e($order['tracking_number'] ?? '') ?>">
-                </div>
+                
                 <button class="btn btn-primary w-100">Simpan Perubahan</button>
             </form>
             <script>
@@ -517,9 +504,6 @@ addItem();
             <?php 
                 $queryParams = $_GET;
                 unset($queryParams['page']);
-            ?>
-            <?php 
-                $queryParams['page'] = 1;
             ?>
             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                 <?php 
