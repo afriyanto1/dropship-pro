@@ -142,10 +142,10 @@ require 'includes/header.php';
             <thead>
                 <tr>
                     <th>Produk</th>
-                    <th>Supplier</th>
+                    <th class="d-none d-md-table-cell">Supplier</th>
                     <th>Harga modal</th>
                     <th>Harga jual</th>
-                    <th>Margin/unit</th>
+                    <th class="d-none d-md-table-cell">Margin/unit</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -159,10 +159,10 @@ require 'includes/header.php';
                         <div class="fw-semibold"><?= e($p['name']) ?></div>
                         <small class="text-muted"><?= e($p['sku'] ?: 'Tanpa SKU') ?><?= $p['category'] ? ' · ' . e($p['category']) : '' ?></small>
                     </td>
-                    <td><?= e($p['supplier_name'] ?? '-') ?></td>
+                    <td class="d-none d-md-table-cell"><?= e($p['supplier_name'] ?? '-') ?></td>
                     <td><?= rupiah($p['cost_price']) ?></td>
                     <td><?= rupiah($p['selling_price']) ?></td>
-                    <td class="text-success"><?= rupiah($p['selling_price'] - $p['cost_price']) ?></td>
+                    <td class="text-success d-none d-md-table-cell"><?= rupiah($p['selling_price'] - $p['cost_price']) ?></td>
                     <td class="text-nowrap">
                         <a class="btn btn-sm btn-outline-primary" href="products.php?action=edit&id=<?= $p['id'] ?>">Edit</a>
                         <form class="d-inline" method="post" onsubmit="return confirm('Hapus produk ini?')">
