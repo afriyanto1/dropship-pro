@@ -6,6 +6,7 @@ CREATE TABLE `order_items` (
   `cost_price` decimal(14,2) NOT NULL DEFAULT '0.00',
   `selling_price` decimal(14,2) NOT NULL DEFAULT '0.00',
   `quantity` int unsigned NOT NULL DEFAULT '1',
+  `returned_qty` int unsigned NOT NULL DEFAULT '0',
   `line_total` decimal(14,2) NOT NULL DEFAULT '0.00',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

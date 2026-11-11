@@ -18,46 +18,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf(); 
     $act = $_POST['form_action'] ?? '';
     
-    // Proteksi Ubah Status & Biaya: Hanya Admin yang diizinkan
+    // Proteksi Ubah Status, Biaya & Return Sebagian: Hanya Admin yang diizinkan
     if ($act === 'status') {
         if (($_SESSION['role'] ?? '') !== 'admin') {
             flash('Akses ditolak. Hanya admin yang dapat mengubah status pesanan.', 'danger');
             redirect('orders.php?action=view&id=' . (int)$_POST['id']);
         }
         
+        $orderId = (int)$_POST['id'];
         $status = $_POST['status'];
         $paymentStatus = $_POST['payment_status'];
         $trackingNumber = trim($_POST['tracking_number'] ?? '') ?: null;
         $partialAmount = (float)($_POST['partial_amount'] ?? 0);
         $fulfillmentCost = (float)($_POST['fulfillment_cost'] ?? 0);
         $adCost = (float)($_POST['ad_cost'] ?? 0);
-        
-        // Ambil total tagihan pesanan
-        $qOrder = $pdo->prepare("SELECT total_amount FROM orders WHERE id=?");
-        $qOrder->execute([(int)$_POST['id']]);
-        $ordData = $qOrder->fetch();
-        $totalAmount = $ordData['total_amount'] ?? 0;
-        
-        // Atur nominal otomatis berdasarkan status pembayaran
-        if ($paymentStatus === 'Lunas') {
-            $partialAmount = $totalAmount;
-        } elseif ($paymentStatus === 'Belum dibayar' || $paymentStatus === 'Dikembalikan') {
-            $partialAmount = 0; 
-        } elseif ($paymentStatus === 'Pembayaran Partial') {
-            if ($partialAmount >= $totalAmount) {
-                $paymentStatus = 'Lunas';
-                $partialAmount = $totalAmount;
-            } elseif ($partialAmount <= 0) {
-                $paymentStatus = 'Belum dibayar';
-                $partialAmount = 0;
-            }
-        }
+        $returnedQtys = $_POST['returned_qty'] ?? []; // Array input return per item [item_id => qty_returned]
 
-        $q = $pdo->prepare("UPDATE orders SET status=?, payment_status=?, partial_amount=?, fulfillment_cost=?, ad_cost=?, tracking_number=? WHERE id=?");
-        $q->execute([$status, $paymentStatus, $partialAmount, $fulfillmentCost, $adCost, $trackingNumber, (int)$_POST['id']]);
-        
-        flash('Status dan rincian pesanan berhasil diperbarui.');
-        redirect('orders.php?action=view&id=' . (int)$_POST['id']);
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Ambil data item pesanan saat ini
+            $qItems = $pdo->prepare("SELECT * FROM order_items WHERE order_id = ?");
+            $qItems->execute([$orderId]);
+            $currentItems = $qItems->fetchAll();
+
+            $newSubtotal = 0;
+            foreach ($currentItems as $it) {
+                $itemId = $it['id'];
+                $maxQty = (int)$it['quantity'];
+                // Ambil input return, pastikan tidak negatif dan tidak melebihi jumlah beli awal
+                $retQty = isset($returnedQtys[$itemId]) ? max(0, min($maxQty, (int)$returnedQtys[$itemId])) : (int)$it['returned_qty'];
+                
+                // Hitung efektif qty yang dibeli setelah dikurangi return
+                $effectiveQty = $maxQty - $retQty;
+                $sellingPrice = (float)$it['selling_price'];
+                $newLineTotal = $effectiveQty * $sellingPrice;
+
+                // Update kembali ke database untuk item tersebut
+                $upItem = $pdo->prepare("UPDATE order_items SET returned_qty = ?, line_total = ? WHERE id = ?");
+                $upItem->execute([$retQty, $newLineTotal, $itemId]);
+
+                $newSubtotal += $newLineTotal;
+            }
+
+            // Total tagihan baru murni dari subtotal produk yang tidak diretur
+            $totalAmount = $newSubtotal;
+
+            // Atur nominal otomatis berdasarkan status pembayaran
+            if ($paymentStatus === 'Lunas') {
+                $partialAmount = $totalAmount;
+            } elseif ($paymentStatus === 'Belum dibayar' || $paymentStatus === 'Dikembalikan') {
+                $partialAmount = 0; 
+            } elseif ($paymentStatus === 'Pembayaran Partial') {
+                if ($partialAmount >= $totalAmount) {
+                    $paymentStatus = 'Lunas';
+                    $partialAmount = $totalAmount;
+                } elseif ($partialAmount <= 0) {
+                    $paymentStatus = 'Belum dibayar';
+                    $partialAmount = 0;
+                }
+            }
+
+            // Update tabel orders
+            $q = $pdo->prepare("UPDATE orders SET subtotal=?, total_amount=?, status=?, payment_status=?, partial_amount=?, fulfillment_cost=?, ad_cost=?, tracking_number=? WHERE id=?");
+            $q->execute([$newSubtotal, $totalAmount, $status, $paymentStatus, $partialAmount, $fulfillmentCost, $adCost, $trackingNumber, $orderId]);
+            
+            $pdo->commit();
+            flash('Status, rincian pesanan, dan data return berhasil diperbarui.');
+            redirect('orders.php?action=view&id=' . $orderId);
+
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            flash('Gagal memperbarui return pesanan: ' . $e->getMessage(), 'danger');
+            redirect('orders.php?action=view&id=' . $orderId);
+        }
     }
     
     // Pembuatan Pesanan Baru
@@ -93,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$items) throw new RuntimeException('Pilih produk yang valid.');
             
             $code = 'DS' . date('ymd') . strtoupper(bin2hex(random_bytes(3)));
-            $total = $subtotal; // Total tagihan murni dari subtotal produk (tanpa penambahan ongkir)
+            $total = $subtotal; 
             $customer = 'Customer';
             $address = '-';
             
@@ -101,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $q->execute([$code, $customer, null, $address, $subtotal, $shipping, $fulfillmentCost, $adCost, $total, $notes ?: null]);
             $orderId = (int)$pdo->lastInsertId();
             
-            $q = $pdo->prepare("INSERT INTO order_items(order_id, product_id, product_name, cost_price, selling_price, quantity, line_total) VALUES(?,?,?,?,?,?,?)");
+            $q = $pdo->prepare("INSERT INTO order_items(order_id, product_id, product_name, cost_price, selling_price, quantity, returned_qty, line_total) VALUES(?,?,?,?,?,?,0,?)");
             foreach ($items as $it) {
                 $p = $it['p']; 
                 $qty = $it['qty']; 
@@ -265,11 +299,12 @@ addItem();
             </div>
             <hr>
             <div class="table-responsive">
-                <table class="table">
+                <table class="table align-middle">
                     <thead>
                         <tr>
                             <th>Produk</th>
-                            <th>Qty</th>
+                            <th>Qty Beli</th>
+                            <th>Retur</th>
                             <th>Harga</th>
                             <th>Total</th>
                         </tr>
@@ -279,6 +314,13 @@ addItem();
                         <tr>
                             <td><?= e($it['product_name']) ?></td>
                             <td><?= $it['quantity'] ?></td>
+                            <td>
+                                <?php if ((int)$it['returned_qty'] > 0): ?>
+                                    <span class="badge bg-danger"><?= $it['returned_qty'] ?> diretur</span>
+                                <?php else: ?>
+                                    <span class="text-muted">0</span>
+                                <?php endif; ?>
+                            </td>
                             <td><?= rupiah($it['selling_price']) ?></td>
                             <td><?= rupiah($it['line_total']) ?></td>
                         </tr>
@@ -287,7 +329,7 @@ addItem();
                 </table>
             </div>
             <div class="ms-auto" style="max-width:360px">
-                <div class="d-flex justify-content-between mb-1"><span>Subtotal Produk</span><span><?= rupiah($order['subtotal']) ?></span></div>
+                <div class="d-flex justify-content-between mb-1"><span>Subtotal Produk (Efektif)</span><span><?= rupiah($order['subtotal']) ?></span></div>
                 <div class="d-flex justify-content-between mb-1 text-muted"><span>Ongkir</span><span><?= rupiah($order['shipping_cost']) ?></span></div>
                 <div class="d-flex justify-content-between mb-1 text-muted"><span>Biaya FO</span><span><?= rupiah($order['fulfillment_cost']) ?></span></div>
                 <div class="d-flex justify-content-between mb-1 text-muted"><span>Biaya Iklan</span><span><?= rupiah($order['ad_cost']) ?></span></div>
@@ -305,11 +347,12 @@ addItem();
     <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
     <div class="col-lg-4">
         <div class="card p-3 p-md-4 shadow-sm border-0">
-            <h3 class="h5 mb-3">Perbarui Status & Biaya</h3>
+            <h3 class="h5 mb-3">Perbarui Status & Return Item</h3>
             <form method="post" class="vstack gap-3">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="form_action" value="status">
                 <input type="hidden" name="id" value="<?= $order['id'] ?>">
+                
                 <div>
                     <label class="form-label">Status pesanan</label>
                     <select name="status" class="form-select">
@@ -318,6 +361,7 @@ addItem();
                         <?php endforeach; ?>
                     </select>
                 </div>
+
                 <div>
                     <label class="form-label">Status pembayaran</label>
                     <select name="payment_status" id="paymentStatusSelect" class="form-select">
@@ -326,11 +370,27 @@ addItem();
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+                <!-- Bagian Input Return Sebagian Item -->
+                <div class="border rounded p-2 bg-light">
+                    <label class="form-label fw-semibold small mb-2">Kelola Jumlah Retur Barang:</label>
+                    <?php foreach ($items as $it): ?>
+                        <div class="mb-2">
+                            <div class="small text-truncate" style="max-width: 250px;"><?= e($it['product_name']) ?> (Beli: <?= $it['quantity'] ?>)</div>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">Retur Qty</span>
+                                <input type="number" min="0" max="<?= $it['quantity'] ?>" class="form-control" name="returned_qty[<?= $it['id'] ?>]" value="<?= (int)$it['returned_qty'] ?>">
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    <div class="form-text" style="font-size: 0.75rem;">Masukkan jumlah barang yang dikembalikan. Tagihan akan otomatis disesuaikan.</div>
+                </div>
+
                 <div id="partialAmountWrapper">
                     <label class="form-label">Jumlah Dibayar (Rp)</label>
                     <input type="number" min="0" step="1" class="form-control" name="partial_amount" id="partialAmountInput" value="<?= (float)$order['partial_amount'] ?>">
-                    <div class="form-text">Masukkan nominal cicilan/sebagian pembayaran.</div>
                 </div>
+
                 <div class="row g-2">
                     <div class="col-6">
                         <label class="form-label">Biaya FO (Rp)</label>
@@ -422,7 +482,6 @@ addItem();
                 <?php foreach ($rows as $o): ?>
                 <tr>
                     <td class="fw-semibold"><?= e($o['order_code']) ?></td>
-                    <!-- Format tanggal diubah ke dd/mm/yy -->
                     <td><?= e(date('d/m/y', strtotime($o['created_at']))) ?></td>
                     <td><?= rupiah($o['total_amount']) ?></td>
                     <td class="small text-muted d-none d-md-table-cell">
@@ -458,6 +517,9 @@ addItem();
             <?php 
                 $queryParams = $_GET;
                 unset($queryParams['page']);
+            ?>
+            <?php 
+                $queryParams['page'] = 1;
             ?>
             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                 <?php 
