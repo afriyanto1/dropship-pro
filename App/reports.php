@@ -140,7 +140,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
     exit;
 }
 
-$pageTitle = 'Laporan & Pendapatan';
+$pageTitle = 'Laporan';
 require 'includes/header.php';
 
 // Hitung Ringkasan Metrik
