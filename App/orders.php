@@ -27,11 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $orderId = (int)$_POST['id'];
         $status = $_POST['status'];
-        $paymentStatus = $_POST['payment_status'];
         $partialAmount = (float)($_POST['partial_amount'] ?? 0);
         $fulfillmentCost = (float)($_POST['fulfillment_cost'] ?? 0);
         $adCost = (float)($_POST['ad_cost'] ?? 0);
-        $returnedQtys = $_POST['returned_qty'] ?? []; // Array input return per item [item_id => qty_returned]
+        $returnedQtys = $_POST['returned_qty'] ?? []; 
 
         try {
             $pdo->beginTransaction();
@@ -59,21 +58,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $totalAmount = $newSubtotal;
 
-            if ($paymentStatus === 'Lunas') {
-                $partialAmount = $totalAmount;
-            } elseif ($paymentStatus === 'Belum dibayar' || $paymentStatus === 'Dikembalikan') {
-                $partialAmount = 0; 
-            } elseif ($paymentStatus === 'Pembayaran Partial') {
-                if ($partialAmount >= $totalAmount) {
-                    $paymentStatus = 'Lunas';
-                    $partialAmount = $totalAmount;
-                } elseif ($partialAmount <= 0) {
+            // 2. PENENTUAN STATUS PEMBAYARAN OTOMATIS BERDASARKAN NOMINAL
+            $manualPaymentStatus = $_POST['payment_status'] ?? '';
+            if ($manualPaymentStatus === 'Dikembalikan') {
+                $paymentStatus = 'Dikembalikan';
+                $partialAmount = 0;
+            } else {
+                if ($partialAmount <= 0) {
                     $paymentStatus = 'Belum dibayar';
                     $partialAmount = 0;
+                } elseif ($partialAmount >= $totalAmount) {
+                    $paymentStatus = 'Lunas';
+                    $partialAmount = $totalAmount;
+                } else {
+                    $paymentStatus = 'Pembayaran Partial';
                 }
             }
 
-            // Update tabel orders tanpa nomor resi
+            // Update tabel orders
             $q = $pdo->prepare("UPDATE orders SET subtotal=?, total_amount=?, status=?, payment_status=?, partial_amount=?, fulfillment_cost=?, ad_cost=? WHERE id=?");
             $q->execute([$newSubtotal, $totalAmount, $status, $paymentStatus, $partialAmount, $fulfillmentCost, $adCost, $orderId]);
             
@@ -379,6 +381,7 @@ addItem();
                 <div id="partialAmountWrapper">
                     <label class="form-label">Jumlah Dibayar (Rp)</label>
                     <input type="number" min="0" step="1" class="form-control" name="partial_amount" id="partialAmountInput" value="<?= (float)$order['partial_amount'] ?>">
+                    <div class="form-text" style="font-size: 0.75rem;">Status pembayaran akan otomatis menyesuaikan nominal yang dimasukkan.</div>
                 </div>
 
                 <div class="row g-2">
@@ -395,11 +398,25 @@ addItem();
                 <button class="btn btn-primary w-100">Simpan Perubahan</button>
             </form>
             <script>
-            document.getElementById('paymentStatusSelect').addEventListener('change', function() {
-                const total = <?= (float)$order['total_amount'] ?>;
-                const partialInput = document.getElementById('partialAmountInput');
+            // Skrip otomatis agar pilihan status pembayaran menyesuaikan nominal Jumlah Dibayar
+            const totalAmount = <?= (float)$order['total_amount'] ?>;
+            const partialInput = document.getElementById('partialAmountInput');
+            const paymentSelect = document.getElementById('paymentStatusSelect');
+
+            partialInput.addEventListener('input', function() {
+                const val = parseFloat(this.value) || 0;
+                if (val <= 0) {
+                    paymentSelect.value = 'Belum dibayar';
+                } else if (val >= totalAmount) {
+                    paymentSelect.value = 'Lunas';
+                } else {
+                    paymentSelect.value = 'Pembayaran Partial';
+                }
+            });
+
+            paymentSelect.addEventListener('change', function() {
                 if (this.value === 'Lunas') {
-                    partialInput.value = total;
+                    partialInput.value = totalAmount;
                 } else if (this.value === 'Belum dibayar' || this.value === 'Dikembalikan') {
                     partialInput.value = 0;
                 }
