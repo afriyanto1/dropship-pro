@@ -142,7 +142,7 @@ require 'includes/header.php';
                     <th>Kontak</th>
                     <th>Telepon</th>
                     <th>Email</th>
-                    <th>Jumlah produk</th>
+                    <th class="d-none d-md-table-cell">Jumlah produk</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -156,7 +156,7 @@ require 'includes/header.php';
                     <td><?= e($s['contact_name'] ?? '-') ?></td>
                     <td><?= e($s['phone'] ?? '-') ?></td>
                     <td><?= e($s['email'] ?? '-') ?></td>
-                    <td><?= $s['product_count'] ?></td>
+                    <td class="d-none d-md-table-cell"><?= $s['product_count'] ?></td>
                     <td class="text-nowrap">
                         <a class="btn btn-sm btn-outline-primary" href="suppliers.php?action=edit&id=<?= $s['id'] ?>">Edit</a> 
                         <form class="d-inline" method="post" onsubmit="return confirm('Hapus supplier ini? Produk terkait akan tetap ada tanpa supplier.')">

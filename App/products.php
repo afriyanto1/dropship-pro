@@ -145,7 +145,7 @@ require 'includes/header.php';
                     <th class="d-none d-md-table-cell">Supplier</th>
                     <th>Harga modal</th>
                     <th>Harga jual</th>
-                    <th class="d-none d-md-table-cell">Margin/unit</th>
+                    <th>Margin/unit</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
