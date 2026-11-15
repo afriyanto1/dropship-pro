@@ -64,6 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $paymentStatus = 'Dikembalikan';
                 $partialAmount = 0;
             } else {
+                if ($manualPaymentStatus === 'Pembayaran Partial' && $partialAmount <= 0) {
+                    throw new RuntimeException('Untuk status Pembayaran Partial, jumlah dibayar harus lebih dari Rp 0.');
+                }
+
                 if ($partialAmount <= 0) {
                     $paymentStatus = 'Belum dibayar';
                     $partialAmount = 0;
@@ -402,8 +406,10 @@ addItem();
             const totalAmount = <?= (float)$order['total_amount'] ?>;
             const partialInput = document.getElementById('partialAmountInput');
             const paymentSelect = document.getElementById('paymentStatusSelect');
+            const statusForm = paymentSelect.form;
 
             partialInput.addEventListener('input', function() {
+                this.setCustomValidity('');
                 const val = parseFloat(this.value) || 0;
                 if (val <= 0) {
                     paymentSelect.value = 'Belum dibayar';
@@ -415,10 +421,21 @@ addItem();
             });
 
             paymentSelect.addEventListener('change', function() {
+                partialInput.setCustomValidity('');
                 if (this.value === 'Lunas') {
                     partialInput.value = totalAmount;
                 } else if (this.value === 'Belum dibayar' || this.value === 'Dikembalikan') {
                     partialInput.value = 0;
+                }
+            });
+
+            statusForm.addEventListener('submit', function(event) {
+                const val = parseFloat(partialInput.value) || 0;
+                if (paymentSelect.value === 'Pembayaran Partial' && (val <= 0 || val >= totalAmount)) {
+                    event.preventDefault();
+                    partialInput.setCustomValidity('Masukkan jumlah dibayar lebih dari Rp 0 dan kurang dari total tagihan.');
+                    partialInput.reportValidity();
+                    partialInput.focus();
                 }
             });
             </script>
