@@ -26,7 +26,7 @@ CREATE TABLE `orders` (
   `shipping_cost` decimal(14,2) NOT NULL DEFAULT '0.00',
   `total_amount` decimal(14,2) NOT NULL DEFAULT '0.00',
   `status` enum('Menunggu diproses','Diproses supplier','Dikirim','Selesai','Dibatalkan') NOT NULL DEFAULT 'Menunggu diproses',
-  `payment_status` enum('Belum dibayar','Menunggu konfirmasi','Lunas','Dikembalikan') NOT NULL DEFAULT 'Belum dibayar',
+  `payment_status` enum('Belum dibayar','Menunggu konfirmasi','Pembayaran Partial','Lunas','Dikembalikan') NOT NULL DEFAULT 'Belum dibayar',
   `tracking_number` varchar(100) DEFAULT NULL,
   `notes` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
